@@ -1,27 +1,16 @@
 #include <bits/stdc++.h>
-#include <bits/extc++.h>
 #include <unordered_map>
 
 // #include "Graph.hpp"
 
 #define N 2000100
-#define ui uint
+#define ui unsigned int
 #define ull unsigned long long
 #define puu std::pair<ull,ull>
 #define fi first
 #define se second
 
 using namespace __gnu_cxx;
-
-namespace std{
-    template<>
-    struct hash<puu>{
-        size_t operator()(const puu& key) const{
-            return key.first * N + key.second;
-        }
-    };
-}
-
 typedef std::unordered_map<ull,ui> ITIM;
 
 inline int read(){
@@ -42,21 +31,50 @@ struct MyBBMatrix{
     int degree[N];
     int degree_in_S[N];
 
-    int degree_check[N];
+    int prio_id[N];
 
     ITIM edge_map;
 
     inline ull mp(ull x,ull y){return x * (n + 2) + y;}
     
     inline void initialize(){
-        for(int i=0;i<n;++i) point_array.push_back(i);
+        for(int i=0;i<n;++i) point_array.push_back(i),prio_id[i]=i;
+        return;
+    }
+    inline double getval(int x,int i){
+        return 1.*degree[x] * (n-i)/n + 1.*degree_in_S[x]*i/n;
+    }
+    inline void initialize_degree(){
+        for(int i=0;i<n;++i)
+        degree[i] = ver[i].size();
+        for(int i=0;i<n;++i)
+        degree_in_S[i] = 0;
+        return;
+    }
+    bool cmp(int x,int y){
+        return degree[x] > degree[y];
+    }
+    inline void greedy_calc_kplex(){
+        for(int i=0;i<n;++i){
+            for(int j=i;j<n;++j){
+                if(degree_in_S[prio_id[j]] > i - K && getval(prio_id[j],i) > getval(prio_id[i],i)){
+                    std::swap(prio_id[i],prio_id[j]);
+                }
+            }
+            best_solution_size = i+1;
+            for(auto j:ver[prio_id[i]]){
+                ++degree_in_S[j];
+            }
+            for(int j=0;j<i;++j){
+                if(degree_in_S[prio_id[j]] <= i - K) break;
+            }
+        }
+        for(int i=0;i<best_solution_size;++i) best_solution_points.push_back(prio_id[i]);
         return;
     }
     inline void add(int x,int y){
         ver[x].push_back(y);
         ver[y].push_back(x);
-        ++degree[x];
-        ++degree[y];
 
         edge_map[mp(x,y)] = 1;
         edge_map[mp(y,x)] = 1;
@@ -208,7 +226,9 @@ int main(){
     freopen("data.out","w",stdout);
     MyBBMatrix myBBMatrix;
     myBBMatrix.read_graph();
-    myBBMatrix.initialize();
+    myBBMatrix.initialize_degree();
+    myBBMatrix.greedy_calc_kplex();
+    myBBMatrix.initialize_degree();
     myBBMatrix.search();
     myBBMatrix.output();
     return 0;
