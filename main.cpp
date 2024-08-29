@@ -3,6 +3,8 @@
 
 // #include "Graph.hpp"
 
+#include "LinearHeap.h"
+
 #define N 500100
 #define ui unsigned int
 #define ull unsigned long long
@@ -28,7 +30,7 @@ int debug_setting = 20;
 
 struct MyBBMatrix{
     std::vector<ui> ver[N];
-    std::vector<ui> point_array;
+    std::vector<ui> point_array,point_id;
     int n,m,K;
     std::vector<ui> best_solution_points;
     ui best_solution_size; 
@@ -44,11 +46,20 @@ struct MyBBMatrix{
 
     ITIM edge_map;
 
+    ListLinearHeap *heap;
+
+    MyBBMatrix(){
+    }
+
     inline ull mp(ull x,ull y){return x * (n + 2) + y;}
     
     inline void initialize(){
         point_array.clear();
-        for(int i=0;i<n;++i) point_array.push_back(i),prio_id[i]=i;
+        point_id.clear();
+        for(int i=0;i<n;++i)
+        point_array.push_back(i),
+        point_id.push_back(i),
+        prio_id[i]=i;
         return;
     }
     inline double getval(int x,int i){
@@ -107,8 +118,10 @@ struct MyBBMatrix{
         if(i<S_end) return false;
         if(i>=R_end) add_point_to_R(R_end,S_end,i,search_depth),i=R_end-1;
         std::swap(point_array[i],point_array[S_end]);
+        std::swap(point_id[point_array[i]],point_id[point_array[S_end]]);
         for(auto i:ver[point_array[S_end]]){
             ++degree_in_S[i];
+            heap->increment(i,1);
         }
         ++S_end;
         swap_vec.push_back(swap_group(i,S_end-1,0,search_depth));
@@ -118,8 +131,10 @@ struct MyBBMatrix{
         if(S_end == 0) return false;
         if(i>=S_end) return true;
         std::swap(point_array[i],point_array[S_end-1]);
+        std::swap(point_id[point_array[i]],point_id[point_array[S_end-1]]);
         for(auto i:ver[point_array[S_end-1]]){
             --degree_in_S[i];
+            heap->decrement(i,1);
         }
         swap_vec.push_back(swap_group(i,S_end-1,1,search_depth));
         --S_end;
@@ -128,6 +143,7 @@ struct MyBBMatrix{
     inline bool add_point_to_R(int &R_end,int &S_end,int i,int search_depth){
         if(i<R_end || i>n) return false;
         std::swap(point_array[i],point_array[R_end]);
+        std::swap(point_id[point_array[i]],point_id[point_array[R_end]]);
         swap_vec.push_back(swap_group(i,R_end,2,search_depth));
         ++R_end;
         return true;
@@ -137,10 +153,12 @@ struct MyBBMatrix{
         if(i < S_end){
             remove_point_from_S(S_end,R_end,i,search_depth);
             std::swap(point_array[S_end],point_array[R_end-1]);
+            std::swap(point_id[point_array[S_end]],point_id[point_array[R_end-1]]);
             swap_vec.push_back(swap_group(S_end,R_end-1,3,search_depth));
         }
         else{
             std::swap(point_array[i],point_array[R_end-1]);
+            std::swap(point_id[point_array[i]],point_id[point_array[R_end-1]]);
             swap_vec.push_back(swap_group(i,R_end-1,3,search_depth));
         }
         --R_end;
@@ -151,6 +169,7 @@ struct MyBBMatrix{
         while(swap_vec.back().fo == depth && !swap_vec.empty()){
             int fi = swap_vec.back().fi,se = swap_vec.back().se,th = swap_vec.back().th;
             std::swap(point_array[fi],point_array[se]);
+            std::swap(point_id[point_array[fi]],point_id[point_array[se]]);
             switch(th){
                 case 0:--S_end;
                 for(auto i:ver[point_array[fi]]){
@@ -246,15 +265,6 @@ struct MyBBMatrix{
         return;
     }
 
-    void recalc_S(int S_end,int R_end){
-        for(int i=0;i<R_end;++i)
-        degree_in_S[point_array[i]] = 0;
-        for(int i=0;i<S_end;++i){
-            for(auto j:ver[i])
-            ++degree_in_S[j];
-        }
-        return;
-    }
     bool check_S(){
 
         if(best_solution_size != best_solution_points.size()) return false;
@@ -303,13 +313,28 @@ struct MyBBMatrix{
         // std::vector<int> record_vector;
         // for(int i=0;i<R_end;++i)
         // record_vector.push_back(point_array[i]);
-        for(int i=0;i<R_end;++i){
+
+        int heap_id,heap_key;
+        while(heap->get_min(heap_id,heap_key)){
+            if(heap_key + K - 1 < S_end){
+                remove_point_from_R(R_end,S_end,point_id[heap_id],depth);
+                heap->pop_min(heap_id,heap_key);
+            }
+        }
+        while(heap->get_max(heap_id,heap_key)){
+            if(heap_key + K >= R_end && point_id[heap_id] >= S_end){
+                add_point_to_S(S_end,R_end,point_id[heap_id],depth);
+                heap->pop_max(heap_id,heap_key);
+            }
+        }
+        
+        /*for(int i=0;i<R_end;++i){
             if(degree_in_S[point_array[i]] + K - 1 < S_end){
             remove_point_from_R(R_end,S_end,i,depth);
             --i;continue;}
             if(degree_in_S[point_array[i]] + K >= R_end && i>=S_end){
             if(add_point_to_S(S_end,R_end,i,depth)) --i;continue;}
-        }
+        }*/
 
         if(S_end != R_end && degree_in_S[point_array[S_end]] + K > S_end){
             add_point_to_S(S_end,R_end,S_end,depth);
@@ -401,6 +426,10 @@ struct MyBBMatrix{
             return point_dis2_neighbor_number[x] > point_dis2_neighbor_number[y];
         });
         for(int i=0;i<n;++i) id[point_search[i]] = i;
+
+        heap = new ListLinearHeap(n,n-1);
+        heap->init(n,n-1,point_search,degree_in_S);
+
         for(int i=n-1;~i;--i){
             clk1 = clock();
             initialize_certain_point(point_search[i]);
@@ -459,7 +488,7 @@ int main(){
 
     freopen("data_4.in","r",stdin);
     freopen("data_4.out","w",stdout);
-    MyBBMatrix myBBMatrix;
+    MyBBMatrix myBBMatrix = MyBBMatrix();
     myBBMatrix.read_graph();
     
     
